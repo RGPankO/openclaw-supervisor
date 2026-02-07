@@ -1,0 +1,13 @@
+# Instance-specific (never commit)
+INSTANCES.yaml
+
+# OS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Logs
+*.log

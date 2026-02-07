@@ -1,0 +1,132 @@
+# OpenClaw Agent Configuration Template
+# 
+# Copy this to CONFIG-TEMPLATE.yaml and fill in your values.
+# The supervisor uses this as base config for new agents.
+#
+# Values marked [UNIQUE] are provided per-agent when creating.
+# Values marked [SHARED] are copied from this template.
+
+# =============================================================================
+# API KEYS [SHARED]
+# =============================================================================
+# These are shared across all agents (same account)
+
+auth:
+  profiles:
+    anthropic:default:
+      provider: anthropic
+      mode: token
+      # Your Anthropic API key
+      token: "<YOUR_ANTHROPIC_API_KEY>"
+    
+    # Optional: Add other providers
+    # openai:default:
+    #   provider: openai
+    #   mode: token
+    #   token: "<YOUR_OPENAI_API_KEY>"
+
+# =============================================================================
+# MODEL SETTINGS [SHARED]
+# =============================================================================
+
+agents:
+  defaults:
+    model:
+      primary: "anthropic/claude-sonnet-4-5"
+      fallbacks:
+        - "anthropic/claude-sonnet-4-5"
+    
+    # Workspace is set per-agent automatically
+    # workspace: ~/.openclaw-<name>/workspace
+    
+    compaction:
+      mode: safeguard
+      memoryFlush:
+        enabled: true
+    
+    maxConcurrent: 4
+    subagents:
+      maxConcurrent: 4
+
+# =============================================================================
+# COMMUNICATION CHANNEL [UNIQUE PER AGENT]
+# =============================================================================
+# Each agent needs its own channel credentials!
+#
+# Supported channels: telegram, discord, slack, signal, whatsapp, imessage
+#
+# When creating an agent, you provide the channel config:
+#   "Create agent researcher on port 18801 with telegram bot abc123..."
+#   "Create agent coder on port 18802 with discord bot xyz789..."
+#
+# The supervisor injects channel config based on what you provide.
+
+channels:
+  # === TELEGRAM ===
+  # Create bot via @BotFather, get token
+  telegram:
+    enabled: false  # Set to true if using Telegram
+    botToken: "<INJECTED_BY_SUPERVISOR>"
+    dmPolicy: pairing
+    groupPolicy: allowlist
+    streamMode: partial
+
+  # === DISCORD ===
+  # Create bot at discord.com/developers, get token
+  # discord:
+  #   enabled: false
+  #   botToken: "<YOUR_DISCORD_BOT_TOKEN>"
+  #   guildId: "<YOUR_GUILD_ID>"
+
+  # === SLACK ===
+  # Create app at api.slack.com, get tokens
+  # slack:
+  #   enabled: false
+  #   botToken: "<YOUR_SLACK_BOT_TOKEN>"
+  #   appToken: "<YOUR_SLACK_APP_TOKEN>"
+
+  # === SIGNAL ===
+  # Requires signal-cli setup
+  # signal:
+  #   enabled: false
+  #   phoneNumber: "<YOUR_SIGNAL_NUMBER>"
+
+# =============================================================================
+# GATEWAY [UNIQUE PER AGENT]
+# =============================================================================
+# Port and auth token are set per-agent by supervisor
+
+gateway:
+  port: 18800  # <-- INJECTED_BY_SUPERVISOR
+  mode: local
+  bind: loopback
+  auth:
+    mode: token
+    token: "<GENERATED_BY_SUPERVISOR>"
+
+# =============================================================================
+# OPTIONAL FEATURES [SHARED]
+# =============================================================================
+
+browser:
+  enabled: false  # Enable if agents need browser access
+
+# =============================================================================
+# NOTES
+# =============================================================================
+#
+# Creating a Telegram bot:
+# 1. Message @BotFather on Telegram
+# 2. Send /newbot
+# 3. Copy the token
+#
+# Creating a Discord bot:
+# 1. Go to discord.com/developers/applications
+# 2. Create application → Bot → Copy token
+# 3. Invite to your server with proper permissions
+#
+# Recommended naming:
+# - Supervisor (port 18800)
+# - Agent1 (port 18801)
+# - Agent2 (port 18802)
+# - etc.
