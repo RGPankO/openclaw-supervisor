@@ -64,6 +64,48 @@ for each instance:
         alert user
 ```
 
+### Cron Health Monitoring
+
+Detect stuck crons that haven't run when they should have.
+
+**Check all crons:**
+```bash
+./scripts/cron-health-check.sh
+```
+
+**Auto-restart stuck instances:**
+```bash
+./scripts/cron-health-check.sh --auto-restart
+```
+
+**How it works:**
+1. For each instance, query `openclaw cron list`
+2. For each enabled cron job:
+   - Parse schedule (e.g., `22,52 * * * *`)
+   - Calculate expected interval (e.g., 30 min)
+   - Check `lastRunAtMs` against current time
+3. If gap > 2x expected interval → cron is STUCK
+4. With `--auto-restart`, restart the instance
+
+**Example output:**
+```
+🕐 Cron Health Check — 2026-02-08 11:30
+
+📋 geri (profile: main, port: 18789)
+  🚨 STUCK: Tanksio Dev
+      Schedule: 22,52 * * * * (interval: 1800s)
+      Last run: 5h 8m ago
+      Last status: ok
+  ❌ 1/8 crons STUCK
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Summary: 0/1 healthy
+⚠️  1 instance(s) with stuck crons
+   Run with --auto-restart to auto-recover
+```
+
+**Add to supervisor's scheduled tasks** for automated monitoring.
+
 ### Status Reporting
 
 When asked for status, report:
@@ -103,6 +145,8 @@ instances:
 | "Status" | Report all agent statuses |
 | "Logs for X" | Show recent gateway logs |
 | "Health check" | Run health check on all agents now |
+| "Cron check" | Check if any crons are stuck across all instances |
+| "Cron check --auto-restart" | Check crons and restart stuck instances |
 | "Start all" | Start all agents in INSTANCES.yaml |
 | "Stop all" | Stop all agents |
 | "Check for updates" | Fetch + show diff, analyze impact, ask before applying |
