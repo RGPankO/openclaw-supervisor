@@ -71,8 +71,8 @@ chmod +x ~/.openclaw-supervisor/workspace/scripts/*.sh
 ## Step 5: Copy Task Definitions
 
 ```bash
-mkdir -p ~/.openclaw-supervisor/workspace/TASKS
-cp ~/.openclaw-supervisor/workspace/supervisor/TASKS/*.md \
+# Copy TASKS directory structure (README + task directories)
+cp -r ~/.openclaw-supervisor/workspace/supervisor/TASKS/* \
    ~/.openclaw-supervisor/workspace/TASKS/
 ```
 
@@ -93,20 +93,25 @@ EOF
 
 ## Step 7: Update AGENTS.md
 
-Add this section to the user's AGENTS.md:
+Add this section to the user's AGENTS.md under "Every Session":
 
 ```markdown
+## Every Session
+
+Before doing anything else:
+1. Read `MISSION.md` — our purpose
+2. Read `ROLES/SUPERVISOR.md` — My role and capabilities
+3. Read `INSTANCES.yaml` — Current managed agents
+4. Read `framework/FRAMEWORK.md` — Framework rules
+
 ## Supervisor Role
 
 I am a supervisor agent managing multiple OpenClaw instances.
 
-**On session start, read:**
-1. `ROLES/SUPERVISOR.md` — My role and capabilities
-2. `INSTANCES.yaml` — Current managed agents
-
 **Commands I handle:**
 - Create/start/stop/restart agents
 - Health checks (via cron)
+- Cron health monitoring (detect stuck crons)
 - Status reports
 ```
 
@@ -140,7 +145,23 @@ cron action=add job={
   "enabled": true,
   "payload": {
     "kind": "agentTurn",
-    "message": "Read TASKS/AUTO-UPDATE.md and follow the instructions. Check for supervisor updates. If no updates, reply HEARTBEAT_OK."
+    "message": "Read TASKS/README.md for execution rules. Then read TASKS/AUTO-UPDATE/TASK.md and follow instructions. If no updates, reply HEARTBEAT_OK."
+  },
+  "delivery": {"mode": "announce", "bestEffort": true}
+}
+```
+
+### Cron Health Check (every 4 hours)
+
+```
+cron action=add job={
+  "name": "Cron Health Check",
+  "schedule": {"kind": "cron", "expr": "30 */4 * * *", "tz": "UTC"},
+  "sessionTarget": "isolated",
+  "enabled": true,
+  "payload": {
+    "kind": "agentTurn",
+    "message": "Read ROLES/SUPERVISOR.md. Run ./scripts/cron-health-check.sh to detect stuck crons. If any found, restart those instances. Report results."
   },
   "delivery": {"mode": "announce", "bestEffort": true}
 }

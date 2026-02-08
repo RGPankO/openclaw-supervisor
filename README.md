@@ -86,6 +86,7 @@ Once installed, talk to your supervisor:
 | "Restart researcher" | Restarts an agent |
 | "Logs for researcher" | Shows recent logs |
 | "Check for updates" | Checks for supervisor updates |
+| "Cron check" | Check for stuck crons across all instances |
 
 ## Creating New Agents
 
@@ -113,7 +114,8 @@ After creating, communicate with the agent via its configured channel.
 | `INSTALL.md` | Wiring instructions (for agent to read) |
 | `CONFIG-TEMPLATE.example.yaml` | Template for agent configs |
 | `INSTANCES.example.yaml` | Template for tracking agents |
-| `TASKS/AUTO-UPDATE.md` | Update check instructions |
+| `TASKS/README.md` | Task execution rules |
+| `TASKS/AUTO-UPDATE/` | Update check task (TASK.md, HANDOFF.md, runs/) |
 | `scripts/` | Shell scripts for operations |
 
 ## Dependencies
