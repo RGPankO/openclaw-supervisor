@@ -8,10 +8,10 @@
 
 set -e
 
-INSTANCES_FILE=${1:-"$HOME/.openclaw-supervisor/workspace/INSTANCES.yaml"}
+SUPERVISOR_WORKSPACE="${SUPERVISOR_WORKSPACE:-$HOME/.openclaw/workspace-supervisor}"
+INSTANCES_FILE=${1:-"$SUPERVISOR_WORKSPACE/INSTANCES.yaml"}
 AUTO_RESTART=false
 
-# Check for --auto-restart flag
 for arg in "$@"; do
     if [[ "$arg" == "--auto-restart" ]]; then
         AUTO_RESTART=true
@@ -30,108 +30,79 @@ TOTAL_INSTANCES=0
 HEALTHY_INSTANCES=0
 STUCK_INSTANCES=0
 
-# Parse cron expression and calculate interval in seconds
-# Supports: */N, N,M, single values for minutes and hours
 calculate_interval_seconds() {
     local expr="$1"
     local minute=$(echo "$expr" | awk '{print $1}')
     local hour=$(echo "$expr" | awk '{print $2}')
-    
-    # Handle minute patterns
+
     if [[ "$minute" =~ ^\*/([0-9]+)$ ]]; then
-        # */N pattern — runs every N minutes
-        echo $(( ${BASH_REMATCH[1]} * 60 ))
-        return
+        echo $(( ${BASH_REMATCH[1]} * 60 )); return
     elif [[ "$minute" =~ ^([0-9]+),([0-9]+)$ ]]; then
-        # N,M pattern — runs twice per hour
-        echo $(( 30 * 60 ))  # ~30 min interval
-        return
+        echo $(( 30 * 60 )); return
     elif [[ "$minute" =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]]; then
-        # N,M,O pattern — runs 3x per hour
-        echo $(( 20 * 60 ))  # ~20 min interval
-        return
+        echo $(( 20 * 60 )); return
     fi
-    
-    # Handle hour patterns
+
     if [[ "$hour" =~ ^\*/([0-9]+)$ ]]; then
-        # Every N hours
-        echo $(( ${BASH_REMATCH[1]} * 3600 ))
-        return
+        echo $(( ${BASH_REMATCH[1]} * 3600 )); return
     elif [[ "$hour" == "*" ]] && [[ "$minute" =~ ^[0-9]+$ ]]; then
-        # Every hour at minute N
-        echo $(( 60 * 60 ))
-        return
+        echo $(( 60 * 60 )); return
     fi
-    
-    # Default: assume daily (24 hours)
+
     echo $(( 24 * 3600 ))
 }
 
-# Check a single instance's crons
 check_instance_crons() {
     local profile="$1"
     local name="$2"
     local stuck_count=0
     local checked_count=0
     local now_ms=$(($(date +%s) * 1000))
-    
-    # Get cron list as JSON
+
     local cron_json
     cron_json=$(openclaw --profile "$profile" cron list --json 2>/dev/null) || {
         echo "  ⚠️  Could not query crons"
         return 1
     }
-    
-    # Parse each job (using jq if available, fallback to grep)
-    if command -v jq &> /dev/null; then
-        # Use jq for proper JSON parsing
-        local jobs
-        jobs=$(echo "$cron_json" | jq -c '.jobs[]? // empty' 2>/dev/null) || jobs=""
-        
-        while IFS= read -r job; do
-            [ -z "$job" ] && continue
-            
-            local job_name=$(echo "$job" | jq -r '.name // "unnamed"')
-            local enabled=$(echo "$job" | jq -r '.enabled // false')
-            local schedule_expr=$(echo "$job" | jq -r '.schedule.expr // ""')
-            local schedule_kind=$(echo "$job" | jq -r '.schedule.kind // ""')
-            local last_run_ms=$(echo "$job" | jq -r '.state.lastRunAtMs // 0')
-            local last_status=$(echo "$job" | jq -r '.state.lastStatus // "unknown"')
-            
-            # Skip disabled jobs
-            if [[ "$enabled" != "true" ]]; then
-                continue
-            fi
-            
-            # Skip non-cron schedules (at, every)
-            if [[ "$schedule_kind" != "cron" ]]; then
-                continue
-            fi
-            
-            checked_count=$((checked_count + 1))
-            
-            # Calculate expected interval
-            local interval_sec=$(calculate_interval_seconds "$schedule_expr")
-            local max_gap_ms=$(( interval_sec * 2 * 1000 ))  # 2x interval = stuck threshold
-            
-            # Calculate gap
-            local gap_ms=$((now_ms - last_run_ms))
-            local gap_hours=$(( gap_ms / 1000 / 3600 ))
-            local gap_mins=$(( (gap_ms / 1000 / 60) % 60 ))
-            
-            if [[ $gap_ms -gt $max_gap_ms ]]; then
-                echo "  🚨 STUCK: $job_name"
-                echo "      Schedule: $schedule_expr (interval: ${interval_sec}s)"
-                echo "      Last run: ${gap_hours}h ${gap_mins}m ago"
-                echo "      Last status: $last_status"
-                stuck_count=$((stuck_count + 1))
-            fi
-        done <<< "$jobs"
-    else
+
+    if ! command -v jq &> /dev/null; then
         echo "  ⚠️  jq not installed, skipping detailed check"
         return 1
     fi
-    
+
+    local jobs
+    jobs=$(echo "$cron_json" | jq -c '.jobs[]? // empty' 2>/dev/null) || jobs=""
+
+    while IFS= read -r job; do
+        [ -z "$job" ] && continue
+
+        local job_name=$(echo "$job" | jq -r '.name // "unnamed"')
+        local enabled=$(echo "$job" | jq -r '.enabled // false')
+        local schedule_expr=$(echo "$job" | jq -r '.schedule.expr // ""')
+        local schedule_kind=$(echo "$job" | jq -r '.schedule.kind // ""')
+        local last_run_ms=$(echo "$job" | jq -r '.state.lastRunAtMs // 0')
+        local last_status=$(echo "$job" | jq -r '.state.lastStatus // "unknown"')
+
+        [[ "$enabled" != "true" ]] && continue
+        [[ "$schedule_kind" != "cron" ]] && continue
+
+        checked_count=$((checked_count + 1))
+
+        local interval_sec=$(calculate_interval_seconds "$schedule_expr")
+        local max_gap_ms=$(( interval_sec * 2 * 1000 ))
+        local gap_ms=$((now_ms - last_run_ms))
+        local gap_hours=$(( gap_ms / 1000 / 3600 ))
+        local gap_mins=$(( (gap_ms / 1000 / 60) % 60 ))
+
+        if [[ $gap_ms -gt $max_gap_ms ]]; then
+            echo "  🚨 STUCK: $job_name"
+            echo "      Schedule: $schedule_expr (interval: ${interval_sec}s)"
+            echo "      Last run: ${gap_hours}h ${gap_mins}m ago"
+            echo "      Last status: $last_status"
+            stuck_count=$((stuck_count + 1))
+        fi
+    done <<< "$jobs"
+
     if [[ $stuck_count -eq 0 ]] && [[ $checked_count -gt 0 ]]; then
         echo "  ✅ All $checked_count crons healthy"
         return 0
@@ -144,7 +115,6 @@ check_instance_crons() {
     fi
 }
 
-# Main loop through instances
 while IFS= read -r line; do
     if [[ $line =~ name:\ *(.+) ]]; then
         CURRENT_NAME="${BASH_REMATCH[1]}"
@@ -154,37 +124,40 @@ while IFS= read -r line; do
     fi
     if [[ $line =~ port:\ *([0-9]+) ]]; then
         CURRENT_PORT="${BASH_REMATCH[1]}"
-        
+
         if [ -n "$CURRENT_NAME" ] && [ -n "$CURRENT_PORT" ]; then
             TOTAL_INSTANCES=$((TOTAL_INSTANCES + 1))
             PROFILE="${CURRENT_PROFILE:-$CURRENT_NAME}"
-            
+
             echo "📋 $CURRENT_NAME (profile: $PROFILE, port: $CURRENT_PORT)"
-            
-            # First check if instance is reachable
-            if ! openclaw --profile "$PROFILE" gateway health > /dev/null 2>&1; then
+
+            if ! curl -sf "http://127.0.0.1:${CURRENT_PORT}/health" > /dev/null 2>&1; then
                 echo "  ❌ Instance not reachable"
                 STUCK_INSTANCES=$((STUCK_INSTANCES + 1))
             else
                 check_instance_crons "$PROFILE" "$CURRENT_NAME"
                 result=$?
-                
+
                 if [[ $result -eq 2 ]]; then
                     STUCK_INSTANCES=$((STUCK_INSTANCES + 1))
-                    
+
                     if [[ "$AUTO_RESTART" == "true" ]]; then
                         echo "  🔄 Auto-restarting $CURRENT_NAME..."
-                        openclaw --profile "$PROFILE" gateway restart 2>/dev/null && {
-                            echo "  ✅ Restarted successfully"
-                        } || {
-                            echo "  ⚠️  Restart failed (may need manual intervention)"
-                        }
+                        PLIST="$HOME/Library/LaunchAgents/ai.openclaw.${PROFILE}.plist"
+                        if [ -f "$PLIST" ]; then
+                            launchctl unload "$PLIST" 2>/dev/null
+                            sleep 1
+                            launchctl load "$PLIST" 2>/dev/null
+                            echo "  ✅ Restarted via launchctl"
+                        else
+                            echo "  ⚠️  No plist found, manual restart needed"
+                        fi
                     fi
                 else
                     HEALTHY_INSTANCES=$((HEALTHY_INSTANCES + 1))
                 fi
             fi
-            
+
             echo ""
             CURRENT_NAME=""
             CURRENT_PROFILE=""

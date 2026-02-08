@@ -1,27 +1,24 @@
 #!/bin/bash
-# Start an OpenClaw agent
-# Usage: ./start-agent.sh <name> <port>
+# Start an OpenClaw agent via launchctl
+# Usage: ./start-agent.sh <name>
 
 NAME=$1
-PORT=$2
 
 if [ -z "$NAME" ]; then
-    echo "Usage: $0 <name> [port]"
+    echo "Usage: $0 <name>"
     exit 1
 fi
 
-# Check if profile exists
-if [ ! -d "$HOME/.openclaw-$NAME" ]; then
-    echo "Error: Profile '$NAME' does not exist"
+PLIST="$HOME/Library/LaunchAgents/ai.openclaw.${NAME}.plist"
+
+if [ ! -f "$PLIST" ]; then
+    echo "Error: No launchd service found for '$NAME'"
+    echo "Expected: $PLIST"
+    echo "Install first: openclaw --profile $NAME gateway install"
     exit 1
 fi
 
 echo "Starting agent: $NAME"
-
-if [ -n "$PORT" ]; then
-    openclaw --profile "$NAME" gateway start --port "$PORT"
-else
-    openclaw --profile "$NAME" gateway start
-fi
+launchctl load "$PLIST" 2>&1
 
 echo "✅ Agent '$NAME' started"

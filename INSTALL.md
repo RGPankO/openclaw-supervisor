@@ -6,82 +6,54 @@
 
 ## Prerequisites Check
 
-Before proceeding, verify:
-
-1. **Framework installed?** Check if `workspace/framework/FRAMEWORK.md` exists
-   - If NOT: Tell user "Please install the OpenClaw Framework first: https://github.com/RGPankO/openclaw-framework"
+1. **Framework installed?** Check if `openclaw-framework/FRAMEWORK.md` exists in workspace
+   - If NOT: Tell user "Please install the OpenClaw Framework first"
    - If YES: Continue
 
-2. **ROLES/ directory exists?** 
-   - If NOT: `mkdir -p ~/.openclaw-supervisor/workspace/ROLES`
-
-3. **TASKS/ directory exists?**
-   - If NOT: `mkdir -p ~/.openclaw-supervisor/workspace/TASKS`
+2. **ROLES/ and TASKS/ directories exist?**
+   - If NOT: `mkdir -p ROLES TASKS`
 
 ---
 
 ## Step 1: Clone Repository
 
 ```bash
-cd ~/.openclaw-supervisor/workspace
-git clone https://github.com/RGPankO/openclaw-supervisor supervisor
+cd <workspace>
+git clone https://github.com/RGPankO/openclaw-supervisor openclaw-supervisor
 ```
 
 ---
 
-## Step 2: Config Template Setup
-
-**Tell user:**
-
-> "Before I can create agents, you need to set up CONFIG-TEMPLATE.yaml with your API keys.
-> 
-> Run:
-> ```
-> cp supervisor/CONFIG-TEMPLATE.example.yaml CONFIG-TEMPLATE.yaml
-> ```
-> 
-> Then edit CONFIG-TEMPLATE.yaml and add your Anthropic API key.
-> 
-> Let me know when done."
-
-**Wait for user confirmation before continuing.**
-
----
-
-## Step 3: Copy Role
+## Step 2: Copy Role
 
 ```bash
-cp ~/.openclaw-supervisor/workspace/supervisor/SUPERVISOR.md \
-   ~/.openclaw-supervisor/workspace/ROLES/SUPERVISOR.md
+cp openclaw-supervisor/SUPERVISOR.md ROLES/SUPERVISOR.md
 ```
 
 ---
 
-## Step 4: Copy Scripts
+## Step 3: Copy Scripts
 
 ```bash
-mkdir -p ~/.openclaw-supervisor/workspace/scripts
-cp ~/.openclaw-supervisor/workspace/supervisor/scripts/*.sh \
-   ~/.openclaw-supervisor/workspace/scripts/
-chmod +x ~/.openclaw-supervisor/workspace/scripts/*.sh
+mkdir -p scripts
+cp openclaw-supervisor/scripts/*.sh scripts/
+chmod +x scripts/*.sh
 ```
 
 ---
 
-## Step 5: Copy Task Definitions
+## Step 4: Copy Task Definitions
 
 ```bash
-# Copy TASKS directory structure (README + task directories)
-cp -r ~/.openclaw-supervisor/workspace/supervisor/TASKS/* \
-   ~/.openclaw-supervisor/workspace/TASKS/
+cp -r openclaw-supervisor/TASKS/* TASKS/
 ```
 
 ---
 
-## Step 6: Create INSTANCES.yaml
+## Step 5: Create INSTANCES.yaml
 
 ```bash
-cat > ~/.openclaw-supervisor/workspace/INSTANCES.yaml << 'EOF'
+cat > INSTANCES.yaml << 'EOF'
 # Managed OpenClaw Instances
 # Updated by supervisor agent
 
@@ -91,98 +63,75 @@ EOF
 
 ---
 
-## Step 7: Update AGENTS.md
+## Step 6: Update AGENTS.md
 
-Add this section to the user's AGENTS.md under "Every Session":
+Add supervisor role to the session startup sequence:
 
 ```markdown
-## Every Session
-
-Before doing anything else:
-1. Read `MISSION.md` — our purpose
-2. Read `ROLES/SUPERVISOR.md` — My role and capabilities
-3. Read `INSTANCES.yaml` — Current managed agents
-4. Read `framework/FRAMEWORK.md` — Framework rules
-
-## Supervisor Role
-
-I am a supervisor agent managing multiple OpenClaw instances.
-
-**Commands I handle:**
-- Create/start/stop/restart agents
-- Health checks (via cron)
-- Cron health monitoring (detect stuck crons)
-- Status reports
+### Supervisor Role
+- Read `ROLES/SUPERVISOR.md` — my capabilities and commands
+- Read `INSTANCES.yaml` — current managed agents
 ```
 
 ---
 
-## Step 8: Create Crons
+## Step 7: Create Crons
 
-### Health Check (hourly)
-
-```
-cron action=add job={
-  "name": "Health Check",
-  "schedule": {"kind": "cron", "expr": "0 * * * *", "tz": "UTC"},
-  "sessionTarget": "isolated",
-  "enabled": true,
-  "payload": {
-    "kind": "agentTurn",
-    "message": "Read ROLES/SUPERVISOR.md. Run health check on all instances in INSTANCES.yaml. If any agent is down, attempt restart and alert user. If all healthy, reply HEARTBEAT_OK silently (no Telegram message)."
-  },
-  "delivery": {"mode": "announce", "bestEffort": true}
-}
-```
-
-### Auto-Update (daily at 4am)
+### Health Check (hourly, disabled until instances exist)
 
 ```
-cron action=add job={
-  "name": "Supervisor Auto-Update",
-  "schedule": {"kind": "cron", "expr": "0 4 * * *", "tz": "UTC"},
-  "sessionTarget": "isolated",
-  "enabled": true,
-  "payload": {
-    "kind": "agentTurn",
-    "message": "Read TASKS/README.md for execution rules. Then read TASKS/AUTO-UPDATE/TASK.md and follow instructions. If no updates, reply HEARTBEAT_OK."
-  },
-  "delivery": {"mode": "announce", "bestEffort": true}
-}
+cron add: "Health Check"
+schedule: "0 * * * *" (user's timezone)
+model: worker_model
+enabled: false
+message: "Read ROLES/SUPERVISOR.md. Run ./scripts/health-check.sh. If any agent is down, attempt restart and alert user. If all healthy, reply HEARTBEAT_OK."
 ```
 
-### Cron Health Check (every 4 hours)
+### Supervisor Auto-Update (daily)
 
 ```
-cron action=add job={
-  "name": "Cron Health Check",
-  "schedule": {"kind": "cron", "expr": "30 */4 * * *", "tz": "UTC"},
-  "sessionTarget": "isolated",
-  "enabled": true,
-  "payload": {
-    "kind": "agentTurn",
-    "message": "Read ROLES/SUPERVISOR.md. Run ./scripts/cron-health-check.sh to detect stuck crons. If any found, restart those instances. Report results."
-  },
-  "delivery": {"mode": "announce", "bestEffort": true}
-}
+cron add: "Supervisor Auto-Update"
+schedule: "30 4 * * *" (user's timezone, offset from framework auto-update)
+model: worker_model
+message: "Read TASKS/README.md. Then read TASKS/AUTO-UPDATE/TASK.md and follow instructions."
+```
+
+### Cron Health Check (every 4 hours, disabled until instances exist)
+
+```
+cron add: "Cron Health Check"
+schedule: "30 */4 * * *" (user's timezone)
+model: worker_model
+enabled: false
+message: "Read ROLES/SUPERVISOR.md. Run ./scripts/cron-health-check.sh. If any stuck, restart and report. If all healthy, reply HEARTBEAT_OK."
 ```
 
 ---
 
-## Step 9: Confirm to User
+## Step 8: Confirm
 
-Reply:
+```
+✅ Supervisor installed!
 
-> "✅ Supervisor installed!
-> 
-> **What I can do:**
-> - Create new OpenClaw agents
-> - Monitor agent health (every 5 min)
-> - Start/stop/restart agents
-> - Check for updates (daily)
-> 
-> **Supported channels:** telegram, discord, slack, signal
-> 
-> **Try it:** 'Create agent called test on port 18801 with telegram YOUR_BOT_TOKEN'
-> 
-> **Note:** Each agent needs its own channel credentials (bot token, etc.)."
+**What I can do:**
+- Monitor agent health (hourly)
+- Start/stop/restart agents
+- Detect stuck crons
+- Check for updates (daily)
+
+**Agent creation is manual:**
+  openclaw --profile <name> configure
+  openclaw --profile <name> gateway install
+  openclaw --profile <name> gateway start
+
+Then tell me to add it to INSTANCES.yaml.
+```
+
+---
+
+## Notes
+
+- Scripts use `SUPERVISOR_WORKSPACE` env var (defaults to `~/.openclaw/workspace-supervisor/`)
+- Health checks use `curl` (not `openclaw gateway health`)
+- Service management uses `launchctl` (not `openclaw gateway stop/start`)
+- These choices avoid `--profile` routing bugs in the OpenClaw CLI
