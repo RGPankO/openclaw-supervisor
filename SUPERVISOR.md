@@ -51,25 +51,15 @@ After user creates an agent, add it to `INSTANCES.yaml`.
 
 Uses `curl` against each agent's port to verify gateway is responding.
 
-### Cron Health Monitoring
+### Cron Health Monitoring (Manual Only)
 
-Detect stuck crons that haven't run when they should have.
+**Note:** Automated cron health checking is not recommended due to `openclaw --profile`
+routing bugs (returns wrong instance's cron list). The script is kept for manual use only.
 
-**Check all crons:**
 ```bash
 ./scripts/cron-health-check.sh
-```
-
-**Auto-restart stuck instances:**
-```bash
 ./scripts/cron-health-check.sh --auto-restart
 ```
-
-How it works:
-1. For each instance, query `openclaw --profile <name> cron list --json`
-2. For each enabled cron, calculate expected interval from schedule
-3. If gap > 2x expected interval → cron is STUCK
-4. With `--auto-restart`, restart the instance via launchctl
 
 ### Status Reporting
 
@@ -112,7 +102,7 @@ instances:
 | "Status" | `./scripts/status.sh` or report from INSTANCES.yaml |
 | "Logs for X" | `tail ~/.openclaw-X/logs/gateway.log` |
 | "Health check" | `./scripts/health-check.sh` |
-| "Cron check" | `./scripts/cron-health-check.sh` |
+| "Cron check" | `./scripts/cron-health-check.sh` (manual only, unreliable automated) |
 | "Start all" | Start all agents in INSTANCES.yaml |
 | "Stop all" | Stop all agents |
 | "Check for updates" | `./scripts/check-updates.sh` |

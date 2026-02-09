@@ -93,18 +93,13 @@ message: "Read ROLES/SUPERVISOR.md. Run ./scripts/health-check.sh. If any agent 
 cron add: "Supervisor Auto-Update"
 schedule: "30 4 * * *" (user's timezone, offset from framework auto-update)
 model: worker_model
-message: "Read TASKS/README.md. Then read TASKS/AUTO-UPDATE/TASK.md and follow instructions."
+message: "Read TASKS/README.md. Then read TASKS/SUPERVISOR-UPDATE/TASK.md and follow instructions."
 ```
 
-### Cron Health Check (every 4 hours, disabled until instances exist)
-
-```
-cron add: "Cron Health Check"
-schedule: "30 */4 * * *" (user's timezone)
-model: worker_model
-enabled: false
-message: "Read ROLES/SUPERVISOR.md. Run ./scripts/cron-health-check.sh. If any stuck, restart and report. If all healthy, reply HEARTBEAT_OK."
-```
+**Note:** Cron Health Check (detecting stuck crons on other instances) is not recommended.
+The `openclaw --profile` CLI has routing bugs that return the wrong instance's cron list.
+The hourly port-based health check catches most real problems. The cron-health-check.sh
+script is kept for potential future manual use only.
 
 ---
 
@@ -116,7 +111,6 @@ message: "Read ROLES/SUPERVISOR.md. Run ./scripts/cron-health-check.sh. If any s
 **What I can do:**
 - Monitor agent health (hourly)
 - Start/stop/restart agents
-- Detect stuck crons
 - Check for updates (daily)
 
 **Agent creation is manual:**
