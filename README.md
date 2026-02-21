@@ -4,122 +4,99 @@ A supervisor agent that manages multiple OpenClaw instances on a single machine.
 
 ## What It Does
 
-- **Health monitoring** — Checks if agents are running (hourly)
-- **Auto-restart** — Restarts crashed agents via launchctl
-- **Instance management** — Start/stop/restart agents via chat
-- **Status dashboard** — Quick view of all agents
-- **Cron health** — Detects stuck cron jobs across instances
-- **Self-updating** — Checks for updates daily
+- **Monitors instances** via native OpenClaw heartbeat
+- **Auto-restarts** crashed instances via launchctl
+- **Alerts you** when something needs attention
+- **Tracks instances** in a simple YAML file
 
-## Architecture
+## How It Works
 
-```
-Mac Mini (or any machine)
-│
-├── ~/.openclaw-supervisor/          # Supervisor profile (config, logs, cron)
-│
-├── ~/.openclaw/workspace-supervisor/  # Supervisor workspace
-│   ├── openclaw-framework/          # Framework (dependency)
-│   ├── openclaw-supervisor/         # This repo
-│   ├── INSTANCES.yaml               # Tracks all agents
-│   ├── ROLES/SUPERVISOR.md          # Role definition
-│   ├── scripts/                     # Operational scripts
-│   └── ...
-│
-├── ~/.openclaw-agent1/              # Worker (created manually)
-├── ~/.openclaw-agent2/              # Worker (created manually)
-└── ...
-```
+No custom crons. No shell scripts. The supervisor uses OpenClaw's built-in **heartbeat** as its single operational loop.
 
-**Note:** The workspace path is configurable via `SUPERVISOR_WORKSPACE` env var.
-Default: `~/.openclaw/workspace-supervisor/`
-
-## Prerequisites
-
-- OpenClaw installed (`npm install -g openclaw`)
-- OpenClaw Framework installed first — This supervisor depends on the framework
-
-## Installation
-
-### Step 1: Set Up Supervisor Profile
-
-```bash
-openclaw --profile supervisor setup
-```
-
-Follow the wizard. Configure your channel (Telegram, Discord, etc.).
-
-### Step 2: Install Framework
-
-Start the gateway and tell your supervisor:
-
-> "Install the OpenClaw Framework from https://github.com/RGPankO/openclaw-framework"
-
-### Step 3: Install Supervisor
-
-Once framework is wired in, tell your supervisor:
-
-> "Install the Supervisor from https://github.com/RGPankO/openclaw-supervisor"
-
-The agent will:
-- Clone this repo to workspace
-- Copy SUPERVISOR.md to ROLES/
-- Copy scripts to workspace
-- Create INSTANCES.yaml
-- Set up crons (Health Check, Auto-Update, Cron Health Check)
-
-## Creating New Agents
-
-Agent creation is done **manually** by the user:
-
-```bash
-openclaw --profile <name> configure    # Interactive setup wizard
-openclaw --profile <name> gateway install  # Install as launchd service
-openclaw --profile <name> gateway start    # Start the service
-```
-
-Then tell the supervisor to add it to INSTANCES.yaml.
-
-Each agent needs:
-- Unique name and port
-- Its own channel credentials (bot token, etc.)
-
-## Usage
-
-Once installed, talk to your supervisor:
-
-| Say | Does |
-|-----|------|
-| "Status" | Shows all agents |
-| "Stop X" | Stops an agent |
-| "Start X" | Starts an agent |
-| "Restart X" | Restarts an agent |
-| "Health check" | Check all agents now |
-| "Cron check" | Detect stuck crons |
-| "Logs for X" | Shows recent logs |
-| "Check for updates" | Check for supervisor updates |
-
-## Technical Notes
-
-- **Service management uses `launchctl`** directly (not `openclaw gateway stop/start` which can be unreliable with `--profile`)
-- **Health checks use `curl`** against `http://127.0.0.1:<port>/health` (not `openclaw gateway health` which may probe the wrong port)
-- **Scripts use `SUPERVISOR_WORKSPACE` env var** — set it if your workspace isn't at the default path
+Every heartbeat cycle, the supervisor:
+1. Reads `INSTANCES.yaml` for managed instances
+2. Checks each one (launchctl status + port health)
+3. Restarts anything that's down
+4. Alerts you if it intervened or couldn't fix something
+5. Stays silent if everything's fine
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| SUPERVISOR.md | Role definition — the supervisor's brain |
-| INSTALL.md | Wiring instructions (for agent to read) |
-| INSTANCES.example.yaml | Template for tracking agents |
-| scripts/ | Shell scripts for operations |
-| TASKS/ | Task definitions for crons |
+| `SUPERVISOR.md` | Role definition — what the supervisor can do |
+| `HEARTBEAT.md` | The operational loop — replaces all crons |
+| `INSTANCES.example.yaml` | Template for tracking instances |
+| `INSTALL.md` | Setup instructions (for the agent to read) |
 
-## Dependencies
+## Setup
 
-- **OpenClaw Framework** — Must be installed first
-- **jq** — Required for cron health checks
-- **curl** — Required for health checks
+### 1. Create a supervisor profile
+
+```bash
+openclaw --profile supervisor setup
+```
+
+### 2. Install
+
+Start the gateway and tell your supervisor:
+
+> "Install the Supervisor from https://github.com/RGPankO/openclaw-supervisor"
+
+The agent will read `INSTALL.md` and wire everything in.
+
+### 3. Configure heartbeat
+
+In your supervisor's config (`~/.openclaw-supervisor/openclaw.json`), set the heartbeat interval:
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "heartbeat": {
+        "every": "2h",
+        "target": "last"
+      }
+    }
+  }
+}
+```
+
+Restart the gateway to apply.
+
+### 4. Add your instances
+
+Edit `INSTANCES.yaml` in the workspace:
+
+```yaml
+instances:
+  - name: my-assistant
+    profile: my-assistant
+    port: 18801
+    managed: true
+    notes: "Day-to-day assistant"
+```
+
+## Usage
+
+Talk to your supervisor:
+
+| Say | Does |
+|-----|------|
+| "Status" | Shows all instances |
+| "Stop X" | Stops an instance |
+| "Start X" | Starts an instance |
+| "Restart X" | Restarts an instance |
+| "Health check" | Check all instances now |
+| "Add X" | Add to INSTANCES.yaml |
+
+## Design Decisions
+
+- **Heartbeat over crons** — One native loop instead of isolated cron sessions that lack context and need separate model configs
+- **launchctl over CLI** — `openclaw --profile` has routing bugs; launchctl is direct and reliable
+- **curl over CLI health** — `openclaw gateway health` may probe the wrong port; curl is explicit
+- **No framework dependency** — Supervisor is self-contained; doesn't need the general-purpose framework
+- **Managed flag** — Track instances you know about but aren't ready to monitor yet
 
 ## License
 

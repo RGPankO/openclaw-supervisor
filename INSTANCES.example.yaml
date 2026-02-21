@@ -1,47 +1,24 @@
-# OpenClaw Managed Instances
-# 
-# This file tracks all OpenClaw instances managed by the supervisor.
-# Copy to ~/.openclaw-supervisor/workspace/INSTANCES.yaml
+# Managed OpenClaw Instances
+# Updated by supervisor agent
 #
-# The supervisor reads and updates this file.
+# managed: true  — supervisor actively monitors and restarts if needed
+# managed: false — supervisor knows about it but doesn't touch it
 
-instances: []
+instances:
+  - name: my-assistant
+    profile: my-assistant
+    port: 18801
+    managed: true
+    notes: "Day-to-day assistant"
 
-# Example with agents:
-#
-# instances:
-#   - name: researcher
-#     profile: researcher
-#     port: 18801
-#     channel: telegram
-#     status: running
-#     created: 2026-02-07
-#     last_health_check: 2026-02-07T15:30:00Z
-#     last_restart: null
-#     notes: "Handles research and discovery tasks"
-#
-#   - name: coder
-#     profile: coder
-#     port: 18802
-#     channel: discord
-#     status: running
-#     created: 2026-02-07
-#     last_health_check: 2026-02-07T15:30:00Z
-#     last_restart: 2026-02-07T10:00:00Z
-#     notes: "Coding and development work"
-#
-#   - name: writer
-#     profile: writer
-#     port: 18803
-#     channel: slack
-#     status: stopped
-#     created: 2026-02-07
-#     last_health_check: null
-#     last_restart: null
-#     notes: "Content creation — currently disabled"
+  - name: my-worker
+    profile: my-worker
+    port: 18802
+    managed: true
+    notes: "Background task runner"
 
-# Status values:
-#   running  — Gateway is active and healthy
-#   stopped  — Intentionally stopped by user
-#   error    — Failed health check, needs attention
-#   starting — Being started
+  - name: experimental
+    profile: experimental
+    port: 18803
+    managed: false
+    notes: "Not fully setup yet"

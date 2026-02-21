@@ -2,19 +2,6 @@
 
 *For the OpenClaw agent to read and execute.*
 
----
-
-## Prerequisites Check
-
-1. **Framework installed?** Check if `openclaw-framework/FRAMEWORK.md` exists in workspace
-   - If NOT: Tell user "Please install the OpenClaw Framework first"
-   - If YES: Continue
-
-2. **ROLES/ and TASKS/ directories exist?**
-   - If NOT: `mkdir -p ROLES TASKS`
-
----
-
 ## Step 1: Clone Repository
 
 ```bash
@@ -22,110 +9,68 @@ cd <workspace>
 git clone https://github.com/RGPankO/openclaw-supervisor openclaw-supervisor
 ```
 
----
-
 ## Step 2: Copy Role
 
 ```bash
+mkdir -p ROLES
 cp openclaw-supervisor/SUPERVISOR.md ROLES/SUPERVISOR.md
 ```
 
----
-
-## Step 3: Copy Scripts
+## Step 3: Copy Heartbeat
 
 ```bash
-mkdir -p scripts
-cp openclaw-supervisor/scripts/*.sh scripts/
-chmod +x scripts/*.sh
+cp openclaw-supervisor/HEARTBEAT.md HEARTBEAT.md
 ```
 
----
-
-## Step 4: Copy Task Definitions
+## Step 4: Create Instance List
 
 ```bash
-cp -r openclaw-supervisor/TASKS/* TASKS/
+cp openclaw-supervisor/INSTANCES.example.yaml INSTANCES.yaml
 ```
 
----
+Edit `INSTANCES.yaml` to list the actual instances on this machine.
 
-## Step 5: Create INSTANCES.yaml
+## Step 5: Update AGENTS.md
 
-```bash
-cat > INSTANCES.yaml << 'EOF'
-# Managed OpenClaw Instances
-# Updated by supervisor agent
-
-instances: []
-EOF
-```
-
----
-
-## Step 6: Update AGENTS.md
-
-Add supervisor role to the session startup sequence:
+Add to the session startup sequence:
 
 ```markdown
 ### Supervisor Role
-- Read `ROLES/SUPERVISOR.md` — my capabilities and commands
-- Read `INSTANCES.yaml` — current managed agents
+- If you haven't read `ROLES/SUPERVISOR.md` this session, read it now
+- Read `INSTANCES.yaml` — current managed instances
 ```
 
----
+## Step 6: Configure Heartbeat
 
-## Step 7: Create Crons
+Set heartbeat interval in your OpenClaw config (`~/.openclaw-<profile>/openclaw.json`):
 
-### Health Check (hourly, disabled until instances exist)
-
-```
-cron add: "Health Check"
-schedule: "0 * * * *" (user's timezone)
-model: worker_model
-enabled: false
-message: "Read ROLES/SUPERVISOR.md. Run ./scripts/health-check.sh. If any agent is down, attempt restart and alert user. If all healthy, reply HEARTBEAT_OK."
-```
-
-### Supervisor Auto-Update (daily)
-
-```
-cron add: "Supervisor Auto-Update"
-schedule: "30 4 * * *" (user's timezone, offset from framework auto-update)
-model: worker_model
-message: "Read TASKS/README.md. Then read TASKS/SUPERVISOR-UPDATE/TASK.md and follow instructions."
+```json
+{
+  "agents": {
+    "defaults": {
+      "heartbeat": {
+        "every": "2h",
+        "target": "last"
+      }
+    }
+  }
+}
 ```
 
-**Note:** Cron Health Check (detecting stuck crons on other instances) is not recommended.
-The `openclaw --profile` CLI has routing bugs that return the wrong instance's cron list.
-The hourly port-based health check catches most real problems. The cron-health-check.sh
-script is kept for potential future manual use only.
+Then restart the gateway so it picks up the config.
 
----
-
-## Step 8: Confirm
+## Step 7: Confirm
 
 ```
 ✅ Supervisor installed!
 
-**What I can do:**
-- Monitor agent health (hourly)
-- Start/stop/restart agents
-- Check for updates (daily)
-
-**Agent creation is manual:**
-  openclaw --profile <name> configure
-  openclaw --profile <name> gateway install
-  openclaw --profile <name> gateway start
-
-Then tell me to add it to INSTANCES.yaml.
+Monitoring via heartbeat (no custom crons needed).
+Add instances to INSTANCES.yaml as you create them.
 ```
-
----
 
 ## Notes
 
-- Scripts use `SUPERVISOR_WORKSPACE` env var (defaults to `~/.openclaw/workspace-supervisor/`)
-- Health checks use `curl` (not `openclaw gateway health`)
-- Service management uses `launchctl` (not `openclaw gateway stop/start`)
-- These choices avoid `--profile` routing bugs in the OpenClaw CLI
+- No framework dependency required
+- No custom crons — heartbeat is the single operational loop
+- Service management uses `launchctl` directly (avoids `openclaw --profile` routing bugs)
+- Health checks use `curl` against instance ports
